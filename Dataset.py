@@ -234,7 +234,3 @@ def get_transformers(phase=None):
         ])
     return transformer
 
-
-dataset = ImageNetFolder(root='F:/tieredImageNet/train/', phase="train", dataset_name="tieredImageNet", transformer=transforms.ToTensor())
-dataloader = DataLoader(dataset=dataset, batch_sampler=PrototypicalBatchSampler(dataset.targets, 5, 6, 10,dataset_name="tieredImageNet"))
-visual_batch(dataloader, "tieredImageNet_train")
