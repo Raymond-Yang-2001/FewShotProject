@@ -1,25 +1,31 @@
 # coding=utf-8
 import torch
+from torch.autograd import Variable
 from torch.nn import functional as F
 from torch.nn.modules import Module
+import numpy as np
 
 
 class PrototypicalLoss(Module):
-    '''
+    """
     Loss class deriving from Module for the prototypical loss function defined below
-    '''
-    def __init__(self, n_support):
+    """
+
+    def __init__(self, n_way, n_support, n_query):
         super(PrototypicalLoss, self).__init__()
         self.n_support = n_support
+        self.n_way = n_way
+        self.n_query = n_query
+        self.loss_fn = torch.nn.CrossEntropyLoss()
 
-    def forward(self, input, target):
-        return prototypical_loss(input, target, self.n_support)
+    def forward(self, input):
+        return prototypical_loss(input, self.n_way, self.n_support, self.n_query, self.loss_fn)
 
 
 def euclidean_dist(x, y):
-    '''
+    """
     Compute euclidean distance between two tensors
-    '''
+    """
     # x: N x D
     # y: M x D
     n = x.size(0)
@@ -34,34 +40,23 @@ def euclidean_dist(x, y):
     return torch.pow(x - y, 2).sum(2)
 
 
-def prototypical_loss(input, target, n_support):
-    '''
-    Inspired by https://github.com/jakesnell/prototypical-networks/blob/master/protonets/models/few_shot.py
+def prototypical_loss(input, n_way, n_support, n_query, loss_fn):
+    """
+    """
+    z = input.view(n_way, n_support + n_query, -1)
+    z_support = z[:, :n_support]
+    z_query = z[:, n_support:]
 
-    Compute the barycentres by averaging the features of n_support
-    samples for each class in target, computes then the distances from each
-    samples' features to each one of the barycentres, computes the
-    log_probability for each n_query samples for each one of the current
-    classes, of appartaining to a class c, loss and accuracy are then computed
-    and returned
-    Args:
-    - input: the model output for a batch of samples
-    - target: ground truth for the above batch of samples
-    - n_support: number of samples to keep in account when computing
-      barycentres, for each one of the current classes
-    '''
-    target_cpu = target.to('cpu')
-    input_cpu = input.to('cpu')
-
-    def supp_idxs(c):
-        # FIXME when torch will support where as np
-        return target_cpu.eq(c).nonzero()[:n_support].squeeze(1)
+    # contiguous()函数的作用：把tensor变成在内存中连续分布的形式。
+    prototypes = z_support.contiguous().view(n_way, n_support, -1).mean(1)
+    query_samples = z_query.contiguous().view(n_way * n_query, -1)
+    '''def supp_idxs(c):
+        return torch.argwhere(target_cpu.eq(c))[:n_support].squeeze(1)
 
     # FIXME when torch.unique will be available on cuda too
     # 得到类别索引和类的数量
     classes = torch.unique(target_cpu)
     n_classes = len(classes)
-    # FIXME when torch will support where as np
     # assuming n_query, n_target constants
     # 得到每一类的query的数量
     n_query = target_cpu.eq(classes[0].item()).sum().item() - n_support
@@ -69,22 +64,45 @@ def prototypical_loss(input, target, n_support):
     support_idxs = list(map(supp_idxs, classes))
     # 每一类的support计算均值，结果stack起来  (n_class,d)
     prototypes = torch.stack([input_cpu[idx_list].mean(0) for idx_list in support_idxs])
-    # FIXME when torch will support where as np
+
     # 最后应该为squeeze,或者是view(n_class,-1)
-    query_idxs = torch.stack(list(map(lambda c: target_cpu.eq(c).nonzero()[n_support:], classes))).view(-1)
+
+    def quer_idxs(c):
+        return torch.argwhere(target_cpu.eq(c))[n_support:]
+
+    query_idxs = torch.stack(list(map(quer_idxs, classes))).view(-1)
+    # query_idxs = torch.stack(list(map(lambda c: target_cpu.eq(c).nonzero()[n_support:], classes))).view(-1)
     # query_sample (n_class*n_query,d)
     query_samples = input.to('cpu')[query_idxs]
-    dists = euclidean_dist(query_samples, prototypes)
-
+   
+    '''
+    '''
     log_p_y = F.log_softmax(-dists, dim=1).view(n_classes, n_query, -1)
 
     target_inds = torch.arange(0, n_classes)
     target_inds = target_inds.view(n_classes, 1, 1)
     target_inds = target_inds.expand(n_classes, n_query, 1).long()
     # gather, 在维度2上按照target_inds索引取元素，得到(n_class,n_query,1)，代表每个类里面 对应的每个query样本和原型的损失，求均值
-    loss_val = -log_p_y.gather(2, target_inds).squeeze().view(-1).mean()
-    # 在维度2上取最大(索引)，得到(n_class,n_query,1)
-    _, y_hat = log_p_y.max(2)
-    acc_val = y_hat.eq(target_inds.squeeze(2)).float().mean()
+    loss_val = -log_p_y.gather(2, target_inds).squeeze().view(-1).mean()'''
+    dists = euclidean_dist(query_samples, prototypes)
+    # dist (n_query, n_way)
+    y_label = np.repeat(range(n_way), n_query)
+    # y_label (n_way*n_query, ) e,g,(0,0,0,0,0,1,1,1,1,1......)
+    y_query = torch.from_numpy(y_label).long().cuda()
+    y_query = Variable(y_query)
+    loss_val = loss_fn(-dists, y_query)
 
-    return loss_val,  acc_val
+    #  k, dim=None, largest=True, sorted=True    return values， indices
+    # 找到每一个query样本距离最近的（最接近）的prototype
+    topk_scores, topk_labels = (-dists).data.topk(1, 1, True, True)
+    # topk_labels (n_query, 1)
+    topk_ind = topk_labels.cpu().numpy()
+    top1_correct = np.sum(topk_ind[:, 0] == y_label)
+
+    # 在维度2上取最大(索引)，得到(n_class,n_query,1)
+    # _, y_hat = log_p_y.max(2)
+    # acc_val = y_hat.eq(target_inds.squeeze(2)).float().mean()
+
+    acc_val = top1_correct / (topk_ind.shape[0]) * 100
+
+    return loss_val, acc_val

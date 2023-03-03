@@ -175,7 +175,7 @@ class PrototypicalBatchSampler(object):
                 # 这些样本的索引写如batch
                 batch[s] = self.indexes[label_idx][sample_idxs]
             # 随机打乱batch
-            batch = batch[torch.randperm(len(batch))]
+            # batch = batch[torch.randperm(len(batch))]
             yield batch
 
     def __len__(self):
