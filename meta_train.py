@@ -67,12 +67,12 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
             optim.zero_grad()
             x, y = batch
             # print(x.shape)
-            # x, y = x.to(device), y.to(device)
-            x = x.to(device)
+            x, y = x.to(device), y.to(device)
+            # x = x.to(device)
             with autocast():
                 model_output = model(x)
                 # print(y)
-                loss, acc = loss_fn(model_output)
+                loss, acc = loss_fn(model_output, y)
             episode_tr_loss.append(loss.item())
             scaler.scale(loss).backward()
             scaler.step(optim)  # .step()
@@ -115,12 +115,12 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
         for batch_idx, batch in enumerate(val_dataloader):
             # for batch in tqdm(val_iter):
             x, y = batch
-            x = x.to(device)
-            # x, y = x.to(device), y.to(device)
+            # x = x.to(device)
+            x, y = x.to(device), y.to(device)
             start_time = time.time()
             with autocast():
                 model_output = model(x)
-                loss, acc = loss_fn(model_output)
+                loss, acc = loss_fn(model_output, y)
             end_time = time.time()
             episode_val_loss.append(loss.item())
             episode_val_acc.append(acc)

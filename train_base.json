@@ -21,7 +21,7 @@
     "n_way": 5,
     "n_support": 5,
     "n_query": 16,
-    "manual_seed": 2023,
+    "manual_seed": 1,
     "gpu": 0,
     "resume": true,
     "augment": true

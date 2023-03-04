@@ -175,7 +175,7 @@ class PrototypicalBatchSampler(object):
                 # 这些样本的索引写如batch
                 batch[s] = self.indexes[label_idx][sample_idxs]
             # 随机打乱batch
-            # batch = batch[torch.randperm(len(batch))]
+            batch = batch[torch.randperm(len(batch))]
             yield batch
 
     def __len__(self):
@@ -214,21 +214,19 @@ def get_transformers(phase=None):
     """
     if phase not in ["train", "val", "test"]:
         raise ValueError("phase should have value of one of [train, val, test]")
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    normalize = transforms.Normalize(mean=[0.472, 0.453, 0.410], std=[0.277, 0.268, 0.285])
     if phase == "train":
         transformer = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Lambda(lambda x: F.pad(x.unsqueeze(0),
-                                              (4, 4, 4, 4), mode='reflect').squeeze()),
-            transforms.ToPILImage(),
-            transforms.RandomCrop(84),
+            transforms.RandomResizedCrop(84),
             transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(0.4, 0.4, 0.4),
             transforms.ToTensor(),
             normalize,
         ])
     else:
         transformer = transforms.Compose([
+            transforms.Resize(92),
+            transforms.CenterCrop(84),
             transforms.ToTensor(),
             normalize,
         ])

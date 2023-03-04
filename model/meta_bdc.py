@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from representation import MPNCOV
 from representation.bdc_module import BDC
 from .resnet import ResNet12
 

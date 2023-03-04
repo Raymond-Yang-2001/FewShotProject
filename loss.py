@@ -18,8 +18,8 @@ class PrototypicalLoss(Module):
         self.n_query = n_query
         self.loss_fn = torch.nn.CrossEntropyLoss()
 
-    def forward(self, input):
-        return prototypical_loss(input, self.n_way, self.n_support, self.n_query, self.loss_fn)
+    def forward(self, input, target):
+        return prototypical_loss(input, target, self.n_way, self.n_support, self.n_query, self.loss_fn)
 
 
 def euclidean_dist(x, y):
@@ -40,17 +40,19 @@ def euclidean_dist(x, y):
     return torch.pow(x - y, 2).sum(2)
 
 
-def prototypical_loss(input, n_way, n_support, n_query, loss_fn):
+def prototypical_loss(input, target, n_way, n_support, n_query, loss_fn):
     """
     """
-    z = input.view(n_way, n_support + n_query, -1)
+    '''z = input.view(n_way, n_support + n_query, -1)
     z_support = z[:, :n_support]
     z_query = z[:, n_support:]
 
     # contiguous()函数的作用：把tensor变成在内存中连续分布的形式。
     prototypes = z_support.contiguous().view(n_way, n_support, -1).mean(1)
-    query_samples = z_query.contiguous().view(n_way * n_query, -1)
-    '''def supp_idxs(c):
+    query_samples = z_query.contiguous().view(n_way * n_query, -1)'''
+    target_cpu = target# .to('cpu')
+    input_cpu = input# .to('cpu')
+    def supp_idxs(c):
         return torch.argwhere(target_cpu.eq(c))[:n_support].squeeze(1)
 
     # FIXME when torch.unique will be available on cuda too
@@ -59,7 +61,7 @@ def prototypical_loss(input, n_way, n_support, n_query, loss_fn):
     n_classes = len(classes)
     # assuming n_query, n_target constants
     # 得到每一类的query的数量
-    n_query = target_cpu.eq(classes[0].item()).sum().item() - n_support
+    # n_query = target_cpu.eq(classes[0].item()).sum().item() - n_support
     # 得到所有support在input中的索引
     support_idxs = list(map(supp_idxs, classes))
     # 每一类的support计算均值，结果stack起来  (n_class,d)
@@ -73,11 +75,9 @@ def prototypical_loss(input, n_way, n_support, n_query, loss_fn):
     query_idxs = torch.stack(list(map(quer_idxs, classes))).view(-1)
     # query_idxs = torch.stack(list(map(lambda c: target_cpu.eq(c).nonzero()[n_support:], classes))).view(-1)
     # query_sample (n_class*n_query,d)
-    query_samples = input.to('cpu')[query_idxs]
-   
-    '''
-    '''
-    log_p_y = F.log_softmax(-dists, dim=1).view(n_classes, n_query, -1)
+    query_samples = input[query_idxs]
+    # query_samples = input.to('cpu')[query_idxs]
+    '''log_p_y = F.log_softmax(-dists, dim=1).view(n_classes, n_query, -1)
 
     target_inds = torch.arange(0, n_classes)
     target_inds = target_inds.view(n_classes, 1, 1)
