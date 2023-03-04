@@ -1,0 +1,16 @@
+{
+    "dataset": "miniImageNet",
+    "test_root": "F:/miniImageNet/test",
+    "meta_model_path": "./runs/miniImageNet/BDCResNet12_protonet_5way_5shot_metatrain_pretrained/best_model.pth",
+    "model": "BDCResNet12",
+    "method": "protonet",
+    "exp": "pretrained",
+    "reduced_dim": 256,
+    "episodes": 600,
+    "n_way": 5,
+    "n_support": 5,
+    "n_query": 16,
+    "manual_seed": 2023,
+    "gpu": 0,
+    "augment": true
+}

@@ -135,9 +135,9 @@ class Sqrtm(Function):
         dtype = x.dtype
         I3 = 3.0 * torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype)
         normA = (1.0 / 3.0) * x.mul(I3).sum(dim=1).sum(dim=1)
-        A = x.div(normA.view(batchSize, 1, 1).expand_as(x))
-        Y = torch.zeros(batchSize, iterN, dim, dim, requires_grad=False, device=x.device).type(dtype)
-        Z = torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, iterN, 1, 1).type(dtype)
+        A = x.div(normA.view(batchSize, 1, 1).expand_as(x))# .half()
+        Y = torch.zeros(batchSize, iterN, dim, dim, requires_grad=False, device=x.device).type(dtype)# .half()
+        Z = torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, iterN, 1, 1).type(dtype)#.half()#
         if iterN < 2:
             ZY = 0.5 * (I3 - A)
             YZY = A.bmm(ZY)
@@ -150,7 +150,7 @@ class Sqrtm(Function):
                 Y[:, i, :, :] = Y[:, i - 1, :, :].bmm(ZY)
                 Z[:, i, :, :] = ZY.bmm(Z[:, i - 1, :, :])
             YZY = 0.5 * Y[:, iterN - 2, :, :].bmm(I3 - Z[:, iterN - 2, :, :].bmm(Y[:, iterN - 2, :, :]))
-        y = YZY * torch.sqrt(normA).view(batchSize, 1, 1).expand_as(x)
+        y = YZY * torch.sqrt(normA).view(batchSize, 1, 1).expand_as(x)# .half()
         ctx.save_for_backward(input, A, YZY, normA, Y, Z)
         ctx.iterN = iterN
         return y
@@ -173,16 +173,17 @@ class Sqrtm(Function):
         batchSize = x.data.shape[0]
         dim = x.data.shape[1]
         dtype = x.dtype
-        der_postCom = grad_output * torch.sqrt(normA).view(batchSize, 1, 1).expand_as(x)
+        der_postCom = grad_output * torch.sqrt(normA).view(batchSize, 1, 1).expand_as(x).half()
         """
         对称矩阵A B
         tr(AB)=sum(A○B)= 逐元素乘积，各元素之和
         """
         der_postComAux = (grad_output * ZY).sum(dim=1).sum(dim=1).div(2 * torch.sqrt(normA))
-        I3 = 3.0 * torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype)
+        I3 = 3.0 * torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, 1, 1).type(dtype)# .half()#
         if iterN < 2:
             der_NSiter = 0.5 * (der_postCom.bmm(I3 - A) - A.bmm(der_postCom))
         else:
+            # print(der_postCom.dtype)
             dldY = 0.5 * (der_postCom.bmm(I3 - Y[:, iterN - 2, :, :].bmm(Z[:, iterN - 2, :, :])) -
                           Z[:, iterN - 2, :, :].bmm(Y[:, iterN - 2, :, :]).bmm(der_postCom))
             dldZ = -0.5 * Y[:, iterN - 2, :, :].bmm(der_postCom).bmm(Y[:, iterN - 2, :, :])

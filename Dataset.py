@@ -67,7 +67,8 @@ class ImageNetFolder(ImageFolder):
 
     def find_classes(self, directory):
         dic = {}
-        names = np.unique(np.array(pd.read_csv('./split_csv/'+self.dataset_name+'/' + self.phase + '.csv')['label']))
+        names = np.unique(
+            np.array(pd.read_csv('./split_csv/' + self.dataset_name + '/' + self.phase + '.csv')['label']))
         for i in self.meta_info:
             if i[1] in names:
                 dic[i[1]] = int(i[0])
@@ -167,9 +168,8 @@ class PrototypicalBatchSampler(object):
             for i, c in enumerate(self.classes[c_idxs]):
                 # 从第i个class到第i+1个class在batch中的slice
                 s = slice(i * spc, (i + 1) * spc)
-                # FIXME when torch.argwhere will exists
                 # 找到第i个类的label_idx
-                label_idx = torch.arange(len(self.classes)).long()[self.classes == c].item()
+                label_idx = torch.argwhere(self.classes.eq(c)).item()
                 # 在第label_idx类中随机选择spc个样本
                 sample_idxs = torch.randperm(self.numel_per_class[label_idx])[:spc]
                 # 这些样本的索引写如batch
@@ -233,4 +233,3 @@ def get_transformers(phase=None):
             normalize,
         ])
     return transformer
-

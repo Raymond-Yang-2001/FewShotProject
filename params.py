@@ -21,16 +21,37 @@ def get_params(fromjson=False, json_file=None):
                             help='path to dataset',
                             default='F:/miniImageNet/val')
 
+        parser.add_argument('--test_root',
+                            type=str,
+                            help='test set path',
+                            default='F:/miniImageNet/test')
+
         parser.add_argument('--model',
                             type=str,
                             help='model to use',
-                            default="mpncovresnet50",
-                            choices=["mpncovresnet50"])
+                            default="BDCResNet12",
+                            choices=['ResNet18', 'ResNet34', 'ResNet50', 'ResNet101',
+                                     'ResNet152', 'BDCResNet12'])
+
+        parser.add_argument('--pretrain_model_path',
+                            type=str,
+                            help='path to saved pretrained model',
+                            default=None)
+
+        parser.add_argument('--meta_model_path',
+                            type=str,
+                            help='path to saved meta-trained model',
+                            default=None)
 
         parser.add_argument('--method',
                             type=str,
                             choices=["protonet"],
                             default="protonet")
+
+        parser.add_argument('--reduced_dim',
+                            type=int,
+                            default=256,
+                            help="Dimensions to reduce before cov layer")
 
         parser.add_argument('--exp',
                             type=str,
@@ -97,6 +118,11 @@ def get_params(fromjson=False, json_file=None):
                             type=int,
                             help='number of samples per class to use as query for training, default=16',
                             default=16)
+
+        parser.add_argument('--print_freq',
+                            type=int,
+                            help="Step interval to print",
+                            default=100)
 
         parser.add_argument('-seed', '--manual_seed',
                             type=int,
