@@ -13,6 +13,7 @@ from Dataset import ImageNetFolder, PrototypicalBatchSampler, get_transformers
 from loss import PrototypicalLoss
 from torch.utils.tensorboard import SummaryWriter
 from utils import model_utils
+from utils.model_utils import load_model
 
 param = argparse.ArgumentParser()
 param.add_argument('--param_file', type=str, default=None, help="JSON file for parameters")
@@ -48,12 +49,13 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
     if args.resume:
         checkpoint = torch.load(checkpoint_path)
         assert ValueError("No checkpoint found!")
-        model.load_state_dict(checkpoint['model'])
+        model.load_state_dict(checkpoint['state'])
         optim.load_state_dict(checkpoint['optimizer'])
         start_epoch = checkpoint['epoch']
         best_acc = checkpoint['best_acc']
         lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
         scaler.load_state_dict(checkpoint['scaler'])
+
     for epoch in range(start_epoch, args.epochs):
         episode_tr_loss = []
         episode_tr_acc = []
@@ -67,23 +69,24 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
             optim.zero_grad()
             x, y = batch
             # print(x.shape)
-            x, y = x.to(device), y.to(device)
-            # x = x.to(device)
+            # x, y = x.to(device), y.to(device)
+            x = x.to(device)
             with autocast():
                 model_output = model(x)
                 # print(y)
-                loss, acc = loss_fn(model_output, y)
+                loss, acc = loss_fn(model_output)
             episode_tr_loss.append(loss.item())
             scaler.scale(loss).backward()
             scaler.step(optim)  # .step()
             scaler.update()
-
+            # loss.backward()
+            # optim.step()
             episode_tr_acc.append(acc)
 
             if (batch_idx + 1) % 100 == 0:
                 print('Iters: {}/{}\t'
                       'Loss: {:.4f}\t'
-                      'Prec@1 {:.2f}\t'.format(batch_idx + 1, args.episodes, np.mean(episode_tr_loss),
+                      'Prec@1 {:.2f}\t'.format(batch_idx + 1, args.train_n_episode, np.mean(episode_tr_loss),
                                                np.mean(episode_tr_acc)))
         avg_loss = np.mean(episode_tr_loss)
         avg_acc = np.mean(episode_tr_acc)
@@ -92,9 +95,7 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
         logger.add_scalar("Loss/Train", avg_loss, global_step=epoch)
         logger.add_scalar("Accuracy/Train", avg_acc, global_step=epoch)
 
-        lr_scheduler.step()
-
-        state = {'model': model.state_dict(),
+        state = {'state': model.state_dict(),
                  'optimizer': optim.state_dict(),
                  'epoch': epoch + 1,
                  'best_acc': best_acc,
@@ -103,7 +104,7 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
 
         torch.save(state, checkpoint_path)
         print("Checkpoint Saved!")
-
+        lr_scheduler.step()
         if val_dataloader is None:
             continue
 
@@ -115,12 +116,12 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
         for batch_idx, batch in enumerate(val_dataloader):
             # for batch in tqdm(val_iter):
             x, y = batch
-            # x = x.to(device)
-            x, y = x.to(device), y.to(device)
+            x = x.to(device)
+            # x, y = x.to(device), y.to(device)
             start_time = time.time()
             with autocast():
                 model_output = model(x)
-                loss, acc = loss_fn(model_output, y)
+                loss, acc = loss_fn(model_output)
             end_time = time.time()
             episode_val_loss.append(loss.item())
             episode_val_acc.append(acc)
@@ -135,7 +136,7 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
         postfix = ' (Best)' if avg_acc >= best_acc else ' (Best: {:.2f}%)'.format(
             best_acc)
         print('Avg Val Loss: {:.4f}, Avg Val Acc: {:.2f}%+-{:.2f}%\t{}'.format(
-            avg_loss, avg_acc, 1.96 * std_acc / np.sqrt(args.episodes), postfix))
+            avg_loss, avg_acc, 1.96 * std_acc / np.sqrt(args.val_n_episode), postfix))
         print('Inference time for per episode is: {:.2f}ms'.format(avg_time))
         if avg_acc >= best_acc:
             torch.save(model.state_dict(), best_model_path)
@@ -177,14 +178,14 @@ def init_sampler(labels, mode):
         sampler = PrototypicalBatchSampler(labels=labels,
                                            classes_per_episode=classes_per_it,
                                            sample_per_class=num_samples,
-                                           iterations=args.episodes,
+                                           iterations=args.train_n_episode,
                                            dataset_name='miniImageNet_train' if args.dataset == "miniImageNet" else
                                            'tieredImageNet_train')
     else:
         sampler = PrototypicalBatchSampler(labels=labels,
                                            classes_per_episode=classes_per_it,
                                            sample_per_class=num_samples,
-                                           iterations=args.episodes,
+                                           iterations=args.val_n_episode,
                                            dataset_name='miniImageNet_val' if args.dataset == "miniImageNet" else
                                            'tieredImageNet_val')
     return sampler
@@ -194,8 +195,8 @@ def init_dataloader():
     train_dataset, val_dataset = init_dataset()
     tr_sampler = init_sampler(train_dataset.targets, 'train')
     val_sampler = init_sampler(val_dataset.targets, 'val')
-    tr_dataloader = torch.utils.data.DataLoader(train_dataset, batch_sampler=tr_sampler)
-    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_sampler=val_sampler)
+    tr_dataloader = torch.utils.data.DataLoader(train_dataset, batch_sampler=tr_sampler,num_workers=args.num_workers)
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_sampler=val_sampler,num_workers=args.num_workers)
     return tr_dataloader, val_dataloader
 
 
@@ -207,6 +208,8 @@ def init_protonet():
     model = model_utils.model_dict[args.model]().to(device)
     if hasattr(model, 'reduced_dim') and args.reduced_dim is not None:
         model.reduced_dim = args.reduced_dim
+        print("reduced to", args.reduced_dim)
+    model = load_model(model, args.pretrain_model_path)
     '''class Identity(nn.Module):
         def __init__(self):
             super().__init__()

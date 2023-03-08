@@ -112,6 +112,7 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.feat_dim = [512, 11, 11]
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -159,9 +160,9 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
 
-        x = self.avgpool(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
+        # x = self.avgpool(x)
+        # x = x.view(x.size(0), -1)
+        # x = self.fc(x)
 
         return x
 
@@ -190,7 +191,7 @@ def resnet34(pretrained=False, **kwargs):
     return model
 
 
-def resnet50(pretrained=True, **kwargs):
+def resnet50(pretrained=False, **kwargs):
     """Constructs a ResNet-50 model.
 
     Args:
@@ -199,35 +200,6 @@ def resnet50(pretrained=True, **kwargs):
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet50']))
-
-    '''class _MPNCOV(nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.layer_reduce = nn.Conv2d(512 * Bottleneck.expansion, 256, kernel_size=1, stride=1, padding=0,
-                                          bias=False)
-            self.layer_reduce_bn = nn.BatchNorm2d(256)
-            self.layer_reduce_relu = nn.ReLU(inplace=True)
-
-        def forward(self, x):
-            x = self.layer_reduce(x)
-            x = self.layer_reduce_bn(x)
-            x = self.layer_reduce_relu(x)
-
-            x = MPNCOV.CovpoolLayer(x)
-            x = MPNCOV.SqrtmLayer(x, 5)
-            x = MPNCOV.TriuvecLayer(x)
-            x = x.view(x.size(0), -1)
-            return x'''
-
-    class Identity(nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x):
-            return x
-
-    # model.avgpool = _MPNCOV()
-    model.fc = Identity()
     return model
 
 
@@ -253,6 +225,7 @@ def resnet152(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
+
 
 class SELayer(nn.Module):
     def __init__(self, channel, reduction=16):

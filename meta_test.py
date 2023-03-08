@@ -55,7 +55,6 @@ for batch in tqdm(test_iter):
     # for batch in tqdm(val_iter):
     x, y = batch
     x = x.to(device)
-    # x, y = x.to(device), y.to(device)
     start_time = time.time()
     with autocast():
         model_output = model(x)

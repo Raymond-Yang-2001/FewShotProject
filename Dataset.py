@@ -65,14 +65,14 @@ class ImageNetFolder(ImageFolder):
         self.phase = phase
         super(ImageNetFolder, self).__init__(root=root, transform=transformer)
 
-    def find_classes(self, directory):
+    '''def find_classes(self, directory):
         dic = {}
         names = np.unique(
             np.array(pd.read_csv('./split_csv/' + self.dataset_name + '/' + self.phase + '.csv')['label']))
         for i in self.meta_info:
             if i[1] in names:
                 dic[i[1]] = int(i[0])
-        return list(names), dic
+        return list(names), dic'''
 
 
 class PrototypicalBatchSampler(object):
@@ -166,6 +166,7 @@ class PrototypicalBatchSampler(object):
             # 随机选取c个类
             c_idxs = torch.randperm(len(self.classes))[:cpi]
             for i, c in enumerate(self.classes[c_idxs]):
+
                 # 从第i个class到第i+1个class在batch中的slice
                 s = slice(i * spc, (i + 1) * spc)
                 # 找到第i个类的label_idx
@@ -175,7 +176,7 @@ class PrototypicalBatchSampler(object):
                 # 这些样本的索引写如batch
                 batch[s] = self.indexes[label_idx][sample_idxs]
             # 随机打乱batch
-            batch = batch[torch.randperm(len(batch))]
+            # batch = batch[torch.randperm(len(batch))]
             yield batch
 
     def __len__(self):

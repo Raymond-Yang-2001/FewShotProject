@@ -57,6 +57,7 @@ class BDC(nn.Module):
     def forward(self, x):
         if self.dr is not None and self.dr != self.input_dim:
             x = self.conv_dr_block(x)
+
         x = BDCovpool(x, self.temperature)
         if self.is_vec:
             x = Triuvec(x)
@@ -72,15 +73,21 @@ def BDCovpool(x, t):
 
     I = torch.eye(dim, dim, device=x.device).view(1, dim, dim).repeat(batchSize, 1, 1).type(x.dtype)
     I_M = torch.ones(batchSize, dim, dim, device=x.device).type(x.dtype)
+
     x_pow2 = x.bmm(x.transpose(1, 2))
     dcov = I_M.bmm(x_pow2 * I) + (x_pow2 * I).bmm(I_M) - 2 * x_pow2
 
     dcov = torch.clamp(dcov, min=0.0)
     dcov = torch.exp(t) * dcov
     dcov = torch.sqrt(dcov + 1e-5)
-    t = dcov - 1. / dim * dcov.bmm(I_M) - 1. / dim * I_M.bmm(dcov) + 1. / (dim * dim) * I_M.bmm(dcov).bmm(I_M)
+    tt = dcov - 1. / dim * dcov.bmm(I_M) - 1. / dim * I_M.bmm(dcov)
 
-    return t
+    dcov = dcov.type(torch.float64)
+    I_M = I_M.type(torch.float64)
+
+    tt = tt + 1. / (dim * dim) * (I_M.bmm(dcov).bmm(I_M))
+    tt = tt.half()
+    return tt
 
 
 def Triuvec(x):

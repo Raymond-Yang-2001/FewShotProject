@@ -1,7 +1,6 @@
 # coding=utf-8
 import torch
 from torch.autograd import Variable
-from torch.nn import functional as F
 from torch.nn.modules import Module
 import numpy as np
 
@@ -18,8 +17,10 @@ class PrototypicalLoss(Module):
         self.n_query = n_query
         self.loss_fn = torch.nn.CrossEntropyLoss()
 
-    def forward(self, input, target):
-        return prototypical_loss(input, target, self.n_way, self.n_support, self.n_query, self.loss_fn)
+    '''def forward(self, input, target):
+        return prototypical_loss(input, target, self.n_way, self.n_support, self.n_query, self.loss_fn)'''
+    def forward(self, input):
+        return prototypical_loss(input, self.n_way, self.n_support, self.n_query, self.loss_fn)
 
 
 def euclidean_dist(x, y):
@@ -40,17 +41,17 @@ def euclidean_dist(x, y):
     return torch.pow(x - y, 2).sum(2)
 
 
-def prototypical_loss(input, target, n_way, n_support, n_query, loss_fn):
+def prototypical_loss(input, n_way, n_support, n_query, loss_fn):
     """
     """
-    '''z = input.view(n_way, n_support + n_query, -1)
+    z = input.view(n_way, n_support + n_query, -1)
     z_support = z[:, :n_support]
     z_query = z[:, n_support:]
 
     # contiguous()函数的作用：把tensor变成在内存中连续分布的形式。
     prototypes = z_support.contiguous().view(n_way, n_support, -1).mean(1)
-    query_samples = z_query.contiguous().view(n_way * n_query, -1)'''
-    target_cpu = target# .to('cpu')
+    query_samples = z_query.contiguous().view(n_way * n_query, -1)
+    '''target_cpu = target# .to('cpu')
     input_cpu = input# .to('cpu')
     def supp_idxs(c):
         return torch.argwhere(target_cpu.eq(c))[:n_support].squeeze(1)
@@ -76,7 +77,7 @@ def prototypical_loss(input, target, n_way, n_support, n_query, loss_fn):
     # query_idxs = torch.stack(list(map(lambda c: target_cpu.eq(c).nonzero()[n_support:], classes))).view(-1)
     # query_sample (n_class*n_query,d)
     query_samples = input[query_idxs]
-    # query_samples = input.to('cpu')[query_idxs]
+    # query_samples = input.to('cpu')[query_idxs]'''
     '''log_p_y = F.log_softmax(-dists, dim=1).view(n_classes, n_query, -1)
 
     target_inds = torch.arange(0, n_classes)
