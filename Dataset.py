@@ -60,9 +60,9 @@ class ImageNetFolder(ImageFolder):
 
     def __init__(self, root, dataset_name, phase="train", transformer=None):
 
-        self.meta_info = meta_info
+        '''self.meta_info = meta_info
         self.dataset_name = dataset_name
-        self.phase = phase
+        self.phase = phase'''
         super(ImageNetFolder, self).__init__(root=root, transform=transformer)
 
     '''def find_classes(self, directory):
@@ -143,11 +143,11 @@ class PrototypicalBatchSampler(object):
                 # 给indexes对应class对应sample赋予idx (在label数组中的idx)
                 self.indexes[label_idx, np.where(np.isnan(self.indexes[label_idx]))[0][0]] = idx
                 self.numel_per_class[label_idx] += 1
-            save_path = os.path.join(os.getcwd(), 'episode_idx')
+            save_path = os.path.join(os.getcwd(),'episode_idx')
             if not os.path.exists(save_path):
                 os.makedirs(save_path)
-            np.save(os.path.join(save_path, self.dataset_name) + "_indexes.npy", self.indexes)
-            np.save(os.path.join(save_path, self.dataset_name) + "_numel_per_class.npy", self.numel_per_class)
+            np.save(indexes_path, self.indexes)
+            np.save(numel_per_class_path, self.numel_per_class)
         else:
             print("Read Dataset indexes.")
             self.indexes = torch.tensor(np.load(indexes_path))

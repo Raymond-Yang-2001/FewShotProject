@@ -26,6 +26,9 @@ def load_model(model, dir):
         print("Get tar")
     if os.path.splitext(dir)[-1] == ".pth":
         file_dict = torch.load(dir)
+    for k, v in file_dict.items():
+        if k in model_dict:
+            print(k)
     file_dict = {k: v for k, v in file_dict.items() if k in model_dict}
     model_dict.update(file_dict)
     model.load_state_dict(model_dict)

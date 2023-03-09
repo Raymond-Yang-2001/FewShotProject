@@ -7,9 +7,10 @@ import torch
 import torch.nn as nn
 from torch.cuda.amp import autocast, GradScaler
 import numpy as np
+from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 from params import get_params
-from Dataset import ImageNetFolder, PrototypicalBatchSampler, get_transformers
+from Dataset import ImageNetFolder, get_transformers, PrototypicalBatchSampler
 from loss import PrototypicalLoss
 from torch.utils.tensorboard import SummaryWriter
 from utils import model_utils
@@ -63,7 +64,7 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
 
         print('\n=== Epoch: {} ==='.format(epoch))
         model.train()
-        total_correct=0
+        total_correct = 0
 
         for batch_idx, batch in enumerate(tr_dataloader):
             # for batch in tqdm(train_iter):
@@ -84,7 +85,7 @@ def train(tr_dataloader, model, optim, lr_scheduler, checkpoint_dir, val_dataloa
             _, pred = model_output.topk(1, 1, True, True)
             pred = pred.t()
             correct = pred.eq(y.long().view(1, -1).expand_as(pred))
-            acc = correct.sum().item()/y.size(0)
+            acc = correct.sum().item() / y.size(0)
             tr_acc.append(acc)
 
             if (batch_idx + 1) % 100 == 0:
@@ -162,10 +163,10 @@ def init_seed():
 def init_dataset():
     tr_trans = get_transformers('train')
     val_trans = get_transformers('val')
-    train_dataset = ImageNetFolder(root=args.train_root, dataset_name=args.dataset, phase='train',
-                                   transformer=tr_trans)
-    val_dataset = ImageNetFolder(root=args.val_root, dataset_name=args.dataset, phase='val',
-                                 transformer=val_trans)
+    train_dataset = ImageFolder(root=args.train_root,
+                                transform=tr_trans)
+    val_dataset = ImageFolder(root=args.val_root,
+                              transform=val_trans)
     n_classes = len(np.unique(train_dataset.targets))
     if n_classes < args.n_way:
         raise (Exception('There are not enough classes in the dataset in order ' +
@@ -182,14 +183,13 @@ def init_val_sampler(labels):
                                        classes_per_episode=classes_per_it,
                                        sample_per_class=num_samples,
                                        iterations=args.val_n_episode,
-                                       dataset_name='miniImageNet_val' if args.dataset == "miniImageNet" else
-                                       'tieredImageNet_val')
+                                       dataset_name=args.dataset+'_val')
     return sampler
 
 
 def init_dataloader():
     train_dataset, val_dataset = init_dataset()
-    val_sampler = init_val_sampler(val_dataset.targets, )
+    val_sampler = init_val_sampler(val_dataset.targets)
     tr_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batchsize, shuffle=True,
                                                 num_workers=args.num_workers)
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_sampler=val_sampler, num_workers=args.num_workers)
@@ -204,7 +204,7 @@ def init_protonet():
     model = model_utils.model_dict[args.model](args.reduced_dim)
 
     in_dim = int(args.reduced_dim * (args.reduced_dim + 1) / 2)
-    model = nn.Sequential(model,nn.Sequential(nn.Linear(in_dim, args.num_class)))
+    model = nn.Sequential(model, nn.Sequential(nn.Linear(in_dim, args.num_class)))
     # model.add_module("fc",nn.Sequential(nn.Linear(in_dim, args.num_class)))
     model.to(device)
     return model
